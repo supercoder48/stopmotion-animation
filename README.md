@@ -10,7 +10,8 @@ A browser-based, frame-by-frame animation studio. Draw on a canvas, flip through
 - **Playback** with an adjustable frame rate (1–24 FPS) and a looping preview
 - **Brush controls** — 7 preset colors plus a custom color picker, and an adjustable brush size (1–40)
 - **Per-frame undo** (up to 20 steps) and a one-click clear
-- **Video export** to WebM via `MediaRecorder` (VP9/VP8)
+- **Export** to a **WebM video** (via `MediaRecorder`, VP9/VP8) or an **animated GIF** (a built-in, dependency-free encoder)
+- **Save & Load projects** — save the whole animation to a file and reopen it later to pick up where you left off
 - **Auto-save** to `localStorage` — your work is restored automatically when you reopen the page
 - **Touch support** for drawing on tablets and touchscreens
 
@@ -37,9 +38,9 @@ then visit `http://localhost:8000`.
 3. Use the faint **ghost** of the previous frame to position your next pose, then draw the changes.
 4. Repeat to build up your animation.
 5. Press **▶ Play** to preview the loop, and adjust **FPS** to control the speed.
-6. Click **💾 Save Video** to export a `stopmotion.webm` file.
+6. Click **⬇ Export** and choose **WebM video** or **Animated GIF** to download the result.
 
-Your animation is auto-saved to the browser and restored the next time you open the page. Use **🆕 New** to start over.
+Use **💾 Save** to download the project as a file, and **📂 Load** to reopen a saved project later and resume it. Your animation is also auto-saved to the browser and restored the next time you open the page. Use **🆕 New** to start over.
 
 ## Keyboard shortcuts
 
@@ -58,7 +59,7 @@ Works in any modern browser. Video export requires the [`MediaRecorder` API](htt
 
 ## How it works
 
-Everything lives in [`index.html`](index.html) — HTML, CSS, and vanilla JavaScript, with no external libraries. Each frame is an off-screen `<canvas>`; the visible canvas composites a white background, the onion-skin ghost of the previous frame, and the current frame's drawing. Export replays the frames into an off-screen canvas whose `captureStream()` feeds a `MediaRecorder`, and frames are persisted as PNG data URLs in `localStorage`.
+Everything lives in [`index.html`](index.html) — HTML, CSS, and vanilla JavaScript, with no external libraries. Each frame is an off-screen `<canvas>`; the visible canvas composites a white background, the onion-skin ghost of the previous frame, and the current frame's drawing. WebM export replays the frames into an off-screen canvas whose `captureStream()` feeds a `MediaRecorder`. GIF export uses a small self-contained GIF89a encoder (median-cut palette reduction plus LZW compression) so it needs no dependencies. Projects — and the `localStorage` auto-save — store each frame as a PNG data URL, so a saved project file is just JSON you can re-import later.
 
 ## License
 
