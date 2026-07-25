@@ -27,9 +27,11 @@ Everything is in `index.html`. The JS is organized into commented sections (sear
 - **PLAYBACK** — `startPlay`/`stopPlay` loop through frames on a `setInterval` timed to `fps`.
 - **FILM STRIP** — thumbnail DOM built/updated by `rebuildStrip`, `updateThumb`, `highlightStrip`.
 - **TOOLS** — toolbar wiring for color swatches, brush size, eraser, clear, undo, ghost opacity, FPS.
-- **EXPORT** — `exportWebM()` replays frames into an off-screen canvas whose `captureStream(fps)` feeds a `MediaRecorder`; downloads `stopmotion.webm`.
+- **EXPORT (video / GIF)** — the `⬇ Export` button opens a small format menu. `exportWebM()` replays frames into an off-screen canvas whose `captureStream(fps)` feeds a `MediaRecorder` (`stopmotion.webm`); `exportGIF()` composites each frame and calls the GIF encoder (`stopmotion.gif`). Shared helpers: `compositeFrameInto`, `frameImageData`, `downloadBlob`.
+- **GIF ENCODER** — self-contained GIF89a encoder, no dependencies: `encodeGIF` (assembles header, global color table, Netscape loop block, per-frame Graphic Control + Image Descriptor, trailer), `buildPalette` + `medianCut` + `nearestIndex` (reduce to ≤256 colors with a cached nearest-color lookup), and `lzwEncode` (variable-width LZW). If you touch `lzwEncode`, re-verify by decoding the output through an `<img>` and comparing pixels — the code-size-growth and 4096-entry-reset logic must stay in sync with the decoder.
+- **PROJECT SAVE / IMPORT** — `saveProjectBtn` downloads the project as JSON (`{app, version, width, height, fps, currentIdx, frames:[dataURL]}`); `importBtn`/`importFile` reads a project file and calls `loadProjectData`. `framesFromDataURLs` and `loadProjectData` are shared with `restoreFrames`.
 - **KEYBOARD SHORTCUTS** — `Space` play/pause, `E` eraser, `Ctrl/Cmd+Z` undo, arrows change frame, `N` new frame, `D` duplicate.
-- **AUTO-SAVE** — debounced `persistFrames` writes frames as PNG data URLs to `localStorage` under key `stopmotion_v1`; `restoreFrames` reloads them on init.
+- **AUTO-SAVE** — debounced `persistFrames` writes frames as PNG data URLs to `localStorage` under key `stopmotion_v1`; `restoreFrames` reloads them on init via `loadProjectData`.
 
 ## Key facts and conventions
 

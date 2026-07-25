@@ -298,6 +298,39 @@
 
   #undoBtn { font-size: 15px; }
 
+  /* Export dropdown menu (opens upward, since it sits at the bottom bar) */
+  .menu-wrap { position: relative; display: inline-flex; }
+  .popup-menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    background: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    z-index: 100;
+  }
+  .popup-menu[hidden] { display: none; }
+  .menu-item {
+    background: none;
+    border: none;
+    color: #eee;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .menu-item:hover { background: #0f3460; }
+
+
   /* Avoid the 300ms double-tap zoom delay and stray text selection on controls */
   .icon-btn, .swatch, #customColor, input[type="range"] { touch-action: manipulation; }
 
@@ -412,7 +445,18 @@
     <span id="fpsVal" style="font-size:12px;width:28px">8</span>
     <button class="icon-btn" id="dupBtn" title="Duplicate current frame">⊕ Duplicate</button>
     <span id="frameCount">Frame 1 / 1</span>
-    <button class="icon-btn" id="saveBtn" title="Save animation as video" style="margin-left:auto;background:#2ecc71;color:#000;font-weight:700;">💾 Save Video</button>
+
+    <button class="icon-btn" id="importBtn" title="Open a saved project (.json) and resume it" style="margin-left:auto;">📂 Import</button>
+    <button class="icon-btn" id="saveProjectBtn" title="Save the project to a file you can reopen later">💾 Save</button>
+    <div class="menu-wrap">
+      <button class="icon-btn" id="exportBtn" title="Export the animation as a video or GIF"
+              style="background:#2ecc71;color:#000;font-weight:700;">⬇ Export ▾</button>
+      <div id="exportMenu" class="popup-menu" hidden>
+        <button class="menu-item" data-fmt="webm">🎬 WebM video</button>
+        <button class="menu-item" data-fmt="gif">🖼️ Animated GIF</button>
+      </div>
+    </div>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
   </div>
   <div id="filmStrip">
     <button id="addFrameBtn" title="Add blank frame">+</button>
@@ -844,25 +888,67 @@ fpsSlider.addEventListener('input', () => {
 });
 
 
-// ── EXPORT ────────────────────────────────────────────────
-document.getElementById('saveBtn').addEventListener('click', exportWebM);
+// ── EXPORT (video / GIF) ──────────────────────────────────
+const exportBtn = document.getElementById('exportBtn');
+const exportMenu = document.getElementById('exportMenu');
+
+
+// Open/close the format menu
+exportBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  exportMenu.hidden = !exportMenu.hidden;
+});
+document.addEventListener('click', () => { exportMenu.hidden = true; });
+exportMenu.addEventListener('click', (e) => {
+  const item = e.target.closest('.menu-item');
+  if (!item) return;
+  exportMenu.hidden = true;
+  if (item.dataset.fmt === 'gif') exportGIF();
+  else exportWebM();
+});
+
+
+function setExportBtn(text, disabled) {
+  exportBtn.textContent = text;
+  exportBtn.disabled = disabled;
+}
+function resetExportBtn() { setExportBtn('⬇ Export ▾', false); }
+
+
+// Composite a frame onto the opaque white background it's shown/played on.
+function compositeFrameInto(ctx, i) {
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+  ctx.drawImage(frames[i], 0, 0);
+}
+function frameImageData(i) {
+  const c = document.createElement('canvas');
+  c.width = FRAME_W; c.height = FRAME_H;
+  const cx = c.getContext('2d');
+  compositeFrameInto(cx, i);
+  return cx.getImageData(0, 0, FRAME_W, FRAME_H);
+}
+
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
 
 
 async function exportWebM() {
   if (frames.length < 1) return;
-
-
-  const btn = document.getElementById('saveBtn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Saving…';
-
-
   if (!window.MediaRecorder) {
-    alert('Video export is not supported in this browser. Try Chrome or Firefox.');
-    btn.disabled = false;
-    btn.textContent = '💾 Save Video';
+    alert('Video export is not supported in this browser. Try Chrome or Firefox, or export a GIF instead.');
     return;
   }
+  setExportBtn('⏳ Recording…', true);
 
 
   // Pick best supported codec
@@ -870,17 +956,12 @@ async function exportWebM() {
     .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
 
 
-  // Offscreen canvas to draw each frame into
   const offscreen = document.createElement('canvas');
   offscreen.width = FRAME_W;
   offscreen.height = FRAME_H;
   const offCtx = offscreen.getContext('2d');
-
-
-  // Draw first frame immediately so the stream has content before recording starts
-  offCtx.fillStyle = 'white';
-  offCtx.fillRect(0, 0, FRAME_W, FRAME_H);
-  offCtx.drawImage(frames[0], 0, 0);
+  // Draw first frame so the stream has content before recording starts
+  compositeFrameInto(offCtx, 0);
 
 
   const stream = offscreen.captureStream(fps);
@@ -888,40 +969,270 @@ async function exportWebM() {
   const chunks = [];
   recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
   const done = new Promise(resolve => { recorder.onstop = resolve; });
-
-
   recorder.start();
 
 
   const frameDuration = 1000 / fps;
   for (let i = 0; i < frames.length; i++) {
-    offCtx.fillStyle = 'white';
-    offCtx.fillRect(0, 0, FRAME_W, FRAME_H);
-    offCtx.drawImage(frames[i], 0, 0);
+    compositeFrameInto(offCtx, i);
     await new Promise(resolve => setTimeout(resolve, frameDuration));
   }
-
-
   recorder.stop();
   await done;
 
 
-  const blob = new Blob(chunks, { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'stopmotion.webm';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  downloadBlob(new Blob(chunks, { type: mimeType }), 'stopmotion.webm');
+  setExportBtn('✅ Saved!', true);
+  setTimeout(resetExportBtn, 2000);
+}
 
 
-  btn.textContent = '✅ Saved!';
-  setTimeout(() => {
-    btn.textContent = '💾 Save Video';
-    btn.disabled = false;
-  }, 2000);
+async function exportGIF() {
+  if (frames.length < 1) return;
+  setExportBtn('⏳ Encoding GIF…', true);
+  // Yield twice so the "Encoding…" label paints before the synchronous encode.
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  try {
+    const datas = frames.map((_, i) => frameImageData(i));
+    const delay = Math.max(2, Math.round(100 / fps)); // GIF delay is in 1/100 s
+    const bytes = encodeGIF(datas, FRAME_W, FRAME_H, delay);
+    downloadBlob(new Blob([bytes], { type: 'image/gif' }), 'stopmotion.gif');
+    setExportBtn('✅ Saved!', true);
+  } catch (err) {
+    console.error('GIF export failed:', err);
+    alert('Sorry, GIF export failed: ' + err.message);
+    resetExportBtn();
+    return;
+  }
+  setTimeout(resetExportBtn, 2000);
+}
+
+
+// ── SELF-CONTAINED GIF89a ENCODER ─────────────────────────
+// Animated, infinitely-looping GIF, no dependencies. All frames share one
+// global palette reduced to ≤256 colors by median cut — well suited to the
+// flat-color line art this app produces — then LZW-compressed per the spec.
+function encodeGIF(imageDatas, width, height, delay) {
+  const { palette, indexOf } = buildPalette(imageDatas);
+  const gctBits = Math.max(1, Math.ceil(Math.log2(palette.length || 1)));
+  const gctSize = 1 << gctBits;               // padded to a power of two: 2,4,…,256
+  const minCodeSize = Math.max(2, gctBits);   // LZW minimum code size (≥2)
+
+
+  const out = [];
+  const b = v => out.push(v & 0xff);
+  const w16 = v => { out.push(v & 0xff); out.push((v >> 8) & 0xff); };
+  const str = s => { for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i)); };
+
+
+  str('GIF89a');
+  // Logical Screen Descriptor
+  w16(width); w16(height);
+  b(0x80 | ((gctBits - 1) << 4) | (gctBits - 1)); // GCT present + color res + GCT size
+  b(0);                                            // background color index
+  b(0);                                            // pixel aspect ratio
+
+
+  // Global Color Table (padded)
+  for (let i = 0; i < gctSize; i++) {
+    if (i < palette.length) { b(palette[i].r); b(palette[i].g); b(palette[i].b); }
+    else { b(0); b(0); b(0); }
+  }
+
+
+  // Netscape 2.0 application extension → loop forever
+  b(0x21); b(0xFF); b(0x0B);
+  str('NETSCAPE2.0');
+  b(0x03); b(0x01); w16(0); b(0x00);
+
+
+  for (let f = 0; f < imageDatas.length; f++) {
+    // Graphic Control Extension (per-frame delay, no transparency)
+    b(0x21); b(0xF9); b(0x04);
+    b(0x04);          // disposal method 1 (do not dispose), no transparent color
+    w16(delay);
+    b(0x00);          // transparent color index (unused)
+    b(0x00);          // block terminator
+
+
+    // Image Descriptor
+    b(0x2C);
+    w16(0); w16(0);   // left, top
+    w16(width); w16(height);
+    b(0x00);          // no local color table, not interlaced
+
+
+    // Map pixels → palette indices
+    const data = imageDatas[f].data;
+    const indices = new Uint8Array(width * height);
+    for (let p = 0, q = 0; p < data.length; p += 4, q++) {
+      indices[q] = indexOf(data[p], data[p + 1], data[p + 2]);
+    }
+
+
+    // LZW-compressed image data, split into ≤255-byte sub-blocks
+    b(minCodeSize);
+    const lzw = lzwEncode(indices, minCodeSize);
+    for (let i = 0; i < lzw.length; i += 255) {
+      const chunk = lzw.subarray(i, Math.min(i + 255, lzw.length));
+      b(chunk.length);
+      for (let j = 0; j < chunk.length; j++) out.push(chunk[j]);
+    }
+    b(0x00);          // image block terminator
+  }
+
+
+  b(0x3B);            // trailer
+  return new Uint8Array(out);
+}
+
+
+// Build a ≤256-color palette (exact if few colors, else median cut) plus a
+// cached nearest-color lookup used to index every pixel.
+function buildPalette(imageDatas) {
+  const hist = new Map();
+  for (const id of imageDatas) {
+    const d = id.data;
+    for (let p = 0; p < d.length; p += 4) {
+      const key = (d[p] << 16) | (d[p + 1] << 8) | d[p + 2];
+      hist.set(key, (hist.get(key) || 0) + 1);
+    }
+  }
+  const colors = [];
+  for (const [key, count] of hist) {
+    colors.push({ r: (key >> 16) & 255, g: (key >> 8) & 255, b: key & 255, count });
+  }
+
+
+  const palette = colors.length <= 256
+    ? colors.map(c => ({ r: c.r, g: c.g, b: c.b }))
+    : medianCut(colors, 256);
+
+
+  const cache = new Map();
+  function indexOf(r, g, b) {
+    const key = (r << 16) | (g << 8) | b;
+    let idx = cache.get(key);
+    if (idx === undefined) {
+      idx = nearestIndex(palette, r, g, b);
+      cache.set(key, idx);
+    }
+    return idx;
+  }
+  return { palette, indexOf };
+}
+
+
+function nearestIndex(palette, r, g, b) {
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < palette.length; i++) {
+    const p = palette[i];
+    const dr = p.r - r, dg = p.g - g, db = p.b - b;
+    const d = dr * dr + dg * dg + db * db;
+    if (d < bd) { bd = d; best = i; if (d === 0) break; }
+  }
+  return best;
+}
+
+
+function medianCut(colors, maxColors) {
+  const makeBox = list => {
+    let rMin = 255, rMax = 0, gMin = 255, gMax = 0, bMin = 255, bMax = 0, count = 0;
+    for (const c of list) {
+      if (c.r < rMin) rMin = c.r; if (c.r > rMax) rMax = c.r;
+      if (c.g < gMin) gMin = c.g; if (c.g > gMax) gMax = c.g;
+      if (c.b < bMin) bMin = c.b; if (c.b > bMax) bMax = c.b;
+      count += c.count;
+    }
+    return { list, rMin, rMax, gMin, gMax, bMin, bMax, count };
+  };
+
+
+  let boxes = [makeBox(colors)];
+  while (boxes.length < maxColors) {
+    // Split the splittable box holding the most pixels.
+    let idx = -1, bestCount = -1;
+    for (let i = 0; i < boxes.length; i++) {
+      if (boxes[i].list.length > 1 && boxes[i].count > bestCount) {
+        bestCount = boxes[i].count; idx = i;
+      }
+    }
+    if (idx < 0) break;
+    const bx = boxes[idx];
+    const rr = bx.rMax - bx.rMin, gr = bx.gMax - bx.gMin, br = bx.bMax - bx.bMin;
+    const axis = rr >= gr && rr >= br ? 'r' : (gr >= br ? 'g' : 'b');
+    bx.list.sort((a, c) => a[axis] - c[axis]);
+    let acc = 0, splitAt = 0;
+    const half = bx.count / 2;
+    for (; splitAt < bx.list.length - 1; splitAt++) {
+      acc += bx.list[splitAt].count;
+      if (acc >= half) break;
+    }
+    boxes.splice(idx, 1, makeBox(bx.list.slice(0, splitAt + 1)), makeBox(bx.list.slice(splitAt + 1)));
+  }
+
+
+  return boxes.map(bx => {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (const c of bx.list) { r += c.r * c.count; g += c.g * c.count; b += c.b * c.count; n += c.count; }
+    return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
+  });
+}
+
+
+// GIF LZW compressor (variable-width codes, matching the GIF89a decoder).
+function lzwEncode(indices, minCodeSize) {
+  const clearCode = 1 << minCodeSize;
+  const eoiCode = clearCode + 1;
+  let codeSize, next, dict;
+
+
+  const out = [];
+  let bitBuffer = 0, bitCount = 0;
+  function writeCode(code) {
+    bitBuffer |= code << bitCount;
+    bitCount += codeSize;
+    while (bitCount >= 8) {
+      out.push(bitBuffer & 0xff);
+      bitBuffer >>>= 8;
+      bitCount -= 8;
+    }
+    // Grow the code width once the table has outgrown the current width.
+    if (next >= (1 << codeSize) && codeSize < 12) codeSize++;
+  }
+  function resetDict() {
+    dict = new Map();
+    codeSize = minCodeSize + 1;
+    next = eoiCode + 1;
+  }
+
+
+  resetDict();
+  writeCode(clearCode);
+
+
+  let prefix = indices[0];
+  for (let i = 1; i < indices.length; i++) {
+    const k = indices[i];
+    const key = prefix * 256 + k;       // (prefix code, next index) → combined key
+    if (dict.has(key)) {
+      prefix = dict.get(key);
+    } else {
+      writeCode(prefix);
+      if (next < 4096) {
+        dict.set(key, next);
+        next++;
+      } else {
+        writeCode(clearCode);
+        resetDict();
+      }
+      prefix = k;
+    }
+  }
+  writeCode(prefix);
+  writeCode(eoiCode);
+  if (bitCount > 0) out.push(bitBuffer & 0xff);
+  return Uint8Array.from(out);
 }
 
 
@@ -995,6 +1306,34 @@ function showSaveIndicator(msg) {
 }
 
 
+// Decode an array of PNG data URLs back into frame canvases.
+function framesFromDataURLs(urls) {
+  return Promise.all(urls.map(url => new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = FRAME_W; c.height = FRAME_H;
+      c.getContext('2d').drawImage(img, 0, 0);
+      resolve(c);
+    };
+    img.onerror = () => resolve(makeBlankFrame());
+    img.src = url;
+  })));
+}
+
+
+// Adopt a decoded set of frames as the current animation.
+function loadProjectData(frameCanvases, savedFps, savedIdx) {
+  frames = frameCanvases;
+  undoStack = frames.map(() => []);
+  fps = Math.min(24, Math.max(1, savedFps || 8));
+  document.getElementById('fpsRange').value = fps;
+  document.getElementById('fpsVal').textContent = fps;
+  rebuildStrip();
+  switchTo(Math.min(savedIdx || 0, frames.length - 1));
+}
+
+
 async function restoreFrames() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -1003,26 +1342,7 @@ async function restoreFrames() {
     if (!data.frames || !data.frames.length) return false;
 
 
-    const loaded = await Promise.all(data.frames.map(url => new Promise(resolve => {
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = FRAME_W; c.height = FRAME_H;
-        c.getContext('2d').drawImage(img, 0, 0);
-        resolve(c);
-      };
-      img.onerror = () => resolve(makeBlankFrame());
-      img.src = url;
-    })));
-
-
-    frames = loaded;
-    undoStack = frames.map(() => []);
-    fps = data.fps || 8;
-    document.getElementById('fpsRange').value = fps;
-    document.getElementById('fpsVal').textContent = fps;
-    rebuildStrip();
-    switchTo(Math.min(data.currentIdx || 0, frames.length - 1));
+    loadProjectData(await framesFromDataURLs(data.frames), data.fps, data.currentIdx);
     showSaveIndicator('✅ Animation restored!');
     return true;
   } catch (e) {
@@ -1030,6 +1350,52 @@ async function restoreFrames() {
     return false;
   }
 }
+
+
+// ── PROJECT SAVE / IMPORT ─────────────────────────────────
+// Save the whole project to a file the user can keep and reopen later
+// (same shape as the localStorage autosave, plus a version tag).
+document.getElementById('saveProjectBtn').addEventListener('click', () => {
+  const project = {
+    app: 'stopmotion-studio',
+    version: 1,
+    width: FRAME_W,
+    height: FRAME_H,
+    fps,
+    currentIdx,
+    frames: frames.map(f => f.toDataURL('image/png')),
+  };
+  downloadBlob(new Blob([JSON.stringify(project)], { type: 'application/json' }),
+               'stopmotion-project.json');
+  showSaveIndicator('💾 Project saved to file');
+});
+
+
+// Import a previously-saved project file and resume it.
+const importFileInput = document.getElementById('importFile');
+document.getElementById('importBtn').addEventListener('click', () => importFileInput.click());
+importFileInput.addEventListener('change', async () => {
+  const file = importFileInput.files && importFileInput.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || !Array.isArray(data.frames) || data.frames.length === 0) {
+      throw new Error('this file has no frames.');
+    }
+    if (!confirm('Import this project? It will replace your current animation.')) return;
+
+
+    if (isPlaying) stopPlay();
+    loadProjectData(await framesFromDataURLs(data.frames), data.fps, data.currentIdx);
+    persistFrames();  // make the imported project the resumable session too
+    showSaveIndicator('✅ Project imported!');
+  } catch (err) {
+    console.error('Import failed:', err);
+    alert('Could not import this file: ' + err.message);
+  } finally {
+    importFileInput.value = '';  // allow re-importing the same file
+  }
+});
 
 
 // Hook auto-save into every action that changes frames
