@@ -15,7 +15,9 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;        /* track the *visible* viewport on mobile (browser chrome) */
     overflow: hidden;
+    overscroll-behavior: none;  /* no pull-to-refresh / rubber-banding */
     user-select: none;
   }
 
@@ -295,6 +297,59 @@
 
 
   #undoBtn { font-size: 15px; }
+
+  /* Avoid the 300ms double-tap zoom delay and stray text selection on controls */
+  .icon-btn, .swatch, #customColor, input[type="range"] { touch-action: manipulation; }
+
+
+  /* ── RESPONSIVE / MOBILE ──────────────────────────────────
+     Goal: keep every control *visible* (nothing cropped off-screen) while
+     the chrome stays compact enough that the canvas keeps its space. We let
+     the bars WRAP rather than scroll — a control hidden off the edge is
+     worse than one on a second row — and shrink them on small screens (drop
+     the wordmark and the text labels, tighten gaps) so they need as few rows
+     as possible. In portrait the canvas is width-limited, so an extra
+     toolbar row costs it no size; in landscape the trimmed toolbar collapses
+     back to a single row.
+
+     Two triggers, OR'd together, because phones are small in *different*
+     dimensions depending on orientation: portrait phones are narrow
+     (max-width), landscape phones are short (max-height, ~375–430px tall). */
+  @media (max-width: 768px), (max-height: 500px) {
+    #toolbar  { gap: 6px; padding: 6px 8px; }
+    #controls { gap: 6px; padding: 6px 8px; }
+
+    /* Drop the wordmark and the small text labels — the swatches and sliders
+       speak for themselves — so groups pack tightly and wrap less. */
+    #toolbar h1 { display: none; }
+    .tool-group { padding: 0 4px; gap: 5px; flex-shrink: 0; }
+    .tool-group .tool-label { display: none; }
+
+    /* The film strip is the one bar that genuinely needs horizontal scroll
+       (arbitrarily many frames); keep it swipe-scrollable on its own. */
+    #filmStrip {
+      touch-action: pan-x;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  /* Landscape phones are height-constrained: trim the chrome further so the
+     canvas (what the user actually cares about) gets the vertical room. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    #toolbar { padding: 4px 8px; }
+    #controls { padding: 3px 8px; }
+    #filmStrip { padding: 3px 8px 4px; }
+    .frame-thumb canvas,
+    #addFrameBtn { width: 52px; height: 39px; }
+    #addFrameBtn { font-size: 18px; }
+    #playBtn { padding: 4px 12px; font-size: 16px; }
+
+    /* Shave the sliders and buttons so the whole toolbar fits on one row even
+       on the narrowest landscape phones (~812px), maximizing canvas height. */
+    #brushSize { width: 60px; }
+    #ghostOpacity { width: 56px; }
+    #toolbar .icon-btn { padding: 4px 8px; font-size: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -397,7 +452,9 @@ function resizeDisplay() {
   const wrap = document.getElementById('canvasWrap');
   const availW = wrap.clientWidth - 24;
   const availH = wrap.clientHeight - 24;
-  const scale = Math.min(availW / FRAME_W, availH / FRAME_H, 1);
+  // Fill the available space (no cap at native size) so the canvas is as large
+  // as it can be — important on landscape phones and tablets.
+  const scale = Math.min(availW / FRAME_W, availH / FRAME_H);
   display.style.width  = Math.floor(FRAME_W * scale) + 'px';
   display.style.height = Math.floor(FRAME_H * scale) + 'px';
 }
