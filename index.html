@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Stop Motion Studio</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+
+  body {
+    background: #1a1a2e;
+    color: #eee;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+
+  /* ── TOP TOOLBAR ── */
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #16213e;
+    border-bottom: 2px solid #0f3460;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+
+  #toolbar h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e94560;
+    letter-spacing: 1px;
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+
+
+  .tool-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+    border-left: 1px solid #0f3460;
+  }
+
+
+  .tool-label {
+    font-size: 11px;
+    color: #888;
+    white-space: nowrap;
+  }
+
+
+  /* Color swatches */
+  .swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active { border-color: white; transform: scale(1.15); }
+
+
+  #customColor {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+    overflow: hidden;
+  }
+  #customColor::-webkit-color-swatch-wrapper { padding: 0; }
+  #customColor::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+
+  /* Brush size */
+  #brushSize {
+    width: 80px;
+    accent-color: #e94560;
+    cursor: pointer;
+  }
+
+
+  .icon-btn {
+    background: #0f3460;
+    border: none;
+    color: #eee;
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .icon-btn:hover { background: #1a4a8a; transform: scale(1.03); }
+  .icon-btn.active { background: #e94560; }
+  .icon-btn.danger { background: #6b1a1a; }
+  .icon-btn.danger:hover { background: #a02020; }
+
+
+  /* Ghost opacity */
+  #ghostOpacity {
+    width: 70px;
+    accent-color: #e94560;
+    cursor: pointer;
+  }
+
+
+  /* ── CANVAS AREA ── */
+  #canvasWrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0d0d1a;
+    position: relative;
+    overflow: hidden;
+  }
+
+
+  #displayCanvas {
+    background: white;
+    cursor: crosshair;
+    touch-action: none;
+    box-shadow: 0 0 30px rgba(233,69,96,0.3);
+    image-rendering: pixelated;
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+
+  /* ── BOTTOM STRIP ── */
+  #bottomBar {
+    background: #16213e;
+    border-top: 2px solid #0f3460;
+    flex-shrink: 0;
+  }
+
+
+  #controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    flex-wrap: wrap;
+  }
+
+
+  #playBtn {
+    background: #e94560;
+    font-size: 18px;
+    padding: 6px 14px;
+    border-radius: 50px;
+  }
+  #playBtn:hover { background: #c73050; }
+
+
+  #fpsLabel {
+    font-size: 11px;
+    color: #888;
+  }
+
+
+  #fpsRange {
+    width: 70px;
+    accent-color: #e94560;
+    cursor: pointer;
+  }
+
+
+  #frameCount {
+    font-size: 12px;
+    color: #aaa;
+    margin-left: auto;
+  }
+
+
+  /* Frame strip */
+  #filmStrip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #0f3460 transparent;
+  }
+  #filmStrip::-webkit-scrollbar { height: 4px; }
+  #filmStrip::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
+
+
+  .frame-thumb {
+    position: relative;
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .frame-thumb:hover { transform: scale(1.05); }
+  .frame-thumb.active { border-color: #e94560; }
+
+
+  .frame-thumb canvas {
+    display: block;
+    width: 60px;
+    height: 45px;
+    background: white;
+  }
+
+
+  .frame-num {
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+    color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+
+
+  .del-frame-btn {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 14px;
+    height: 14px;
+    background: rgba(233,69,96,0.85);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 9px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .frame-thumb:hover .del-frame-btn { display: flex; }
+
+
+  #addFrameBtn {
+    flex-shrink: 0;
+    width: 60px;
+    height: 45px;
+    background: #0f3460;
+    border: 2px dashed #1a4a8a;
+    border-radius: 4px;
+    color: #aaa;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  #addFrameBtn:hover { background: #1a4a8a; color: white; }
+
+
+  /* Playback overlay */
+  #playOverlay {
+    display: none;
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: rgba(233,69,96,0.85);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    pointer-events: none;
+  }
+
+
+  #undoBtn { font-size: 15px; }
+</style>
+</head>
+<body>
+
+
+<!-- TOP TOOLBAR -->
+<div id="toolbar">
+  <h1>🎬 STOP MOTION</h1>
+
+
+  <div class="tool-group">
+    <span class="tool-label">Color</span>
+    <div class="swatch active" style="background:#222222" data-color="#222222"></div>
+    <div class="swatch" style="background:#e94560" data-color="#e94560"></div>
+    <div class="swatch" style="background:#f7a928" data-color="#f7a928"></div>
+    <div class="swatch" style="background:#2ecc71" data-color="#2ecc71"></div>
+    <div class="swatch" style="background:#3498db" data-color="#3498db"></div>
+    <div class="swatch" style="background:#9b59b6" data-color="#9b59b6"></div>
+    <div class="swatch" style="background:#ffffff; border:2px solid #555" data-color="#ffffff"></div>
+    <input type="color" id="customColor" value="#ff6600" title="Custom color">
+  </div>
+
+
+  <div class="tool-group">
+    <span class="tool-label">Size</span>
+    <input type="range" id="brushSize" min="1" max="40" value="6">
+    <span id="brushSizeVal" style="font-size:12px;width:22px">6</span>
+  </div>
+
+
+  <div class="tool-group">
+    <button class="icon-btn" id="eraserBtn" title="Eraser (E)">🧹 Erase</button>
+    <button class="icon-btn" id="undoBtn" title="Undo (Ctrl+Z)">↩ Undo</button>
+    <button class="icon-btn danger" id="clearBtn" title="Clear frame">🗑 Clear</button>
+    <button class="icon-btn danger" id="newBtn" title="Start new animation">🆕 New</button>
+  </div>
+
+
+  <div class="tool-group">
+    <span class="tool-label">Ghost</span>
+    <input type="range" id="ghostOpacity" min="0" max="80" value="40" title="Ghost opacity">
+    <span id="ghostVal" style="font-size:12px;width:28px">40%</span>
+  </div>
+</div>
+
+
+<!-- CANVAS -->
+<div id="canvasWrap">
+  <canvas id="displayCanvas"></canvas>
+  <div id="playOverlay">▶ PLAYING</div>
+</div>
+
+
+<!-- BOTTOM BAR -->
+<div id="bottomBar">
+  <div id="controls">
+    <button class="icon-btn" id="playBtn" title="Play/Pause (Space)">▶</button>
+    <span class="tool-label">FPS</span>
+    <input type="range" id="fpsRange" min="1" max="24" value="8">
+    <span id="fpsVal" style="font-size:12px;width:28px">8</span>
+    <button class="icon-btn" id="dupBtn" title="Duplicate current frame">⊕ Duplicate</button>
+    <span id="frameCount">Frame 1 / 1</span>
+    <button class="icon-btn" id="saveBtn" title="Save animation as video" style="margin-left:auto;background:#2ecc71;color:#000;font-weight:700;">💾 Save Video</button>
+  </div>
+  <div id="filmStrip">
+    <button id="addFrameBtn" title="Add blank frame">+</button>
+  </div>
+</div>
+
+
+<script>
+// ── CONSTANTS ──────────────────────────────────────────────
+const FRAME_W = 800;
+const FRAME_H = 600;
+
+
+// ── STATE ──────────────────────────────────────────────────
+let frames = [];           // array of offscreen Canvas elements
+let currentIdx = 0;
+let isDrawing = false;
+let tool = 'pen';          // 'pen' | 'eraser'
+let color = '#222222';
+let brushRadius = 6;
+let ghostOpacity = 0.40;
+let isPlaying = false;
+let playInterval = null;
+let fps = 8;
+let undoStack = [];        // per-frame undo: array of ImageData
+const MAX_UNDO = 20;
+
+
+// ── CANVAS SETUP ──────────────────────────────────────────
+const display = document.getElementById('displayCanvas');
+const ctx = display.getContext('2d');
+display.width = FRAME_W;
+display.height = FRAME_H;
+
+
+function resizeDisplay() {
+  const wrap = document.getElementById('canvasWrap');
+  const availW = wrap.clientWidth - 24;
+  const availH = wrap.clientHeight - 24;
+  const scale = Math.min(availW / FRAME_W, availH / FRAME_H, 1);
+  display.style.width  = Math.floor(FRAME_W * scale) + 'px';
+  display.style.height = Math.floor(FRAME_H * scale) + 'px';
+}
+window.addEventListener('resize', resizeDisplay);
+
+
+// ── FRAME MANAGEMENT ──────────────────────────────────────
+function makeBlankFrame() {
+  const c = document.createElement('canvas');
+  c.width = FRAME_W; c.height = FRAME_H;
+  // Keep transparent — white bg is provided by the display canvas so the ghost shows through
+  return c;
+}
+
+
+function cloneFrame(src) {
+  const c = document.createElement('canvas');
+  c.width = FRAME_W; c.height = FRAME_H;
+  c.getContext('2d').drawImage(src, 0, 0);
+  return c;
+}
+
+
+function addFrame(duplicate = false) {
+  const f = duplicate ? cloneFrame(frames[currentIdx]) : makeBlankFrame();
+  const insertAt = currentIdx + 1;
+  frames.splice(insertAt, 0, f);
+  undoStack.splice(insertAt, 0, []);
+  switchTo(insertAt);
+  rebuildStrip();
+}
+
+
+function deleteFrame(idx) {
+  if (frames.length === 1) return;
+  frames.splice(idx, 1);
+  undoStack.splice(idx, 1);
+  const newIdx = Math.min(idx, frames.length - 1);
+  switchTo(newIdx);
+  rebuildStrip();
+}
+
+
+function switchTo(idx) {
+  currentIdx = idx;
+  render();
+  updateFrameCount();
+  highlightStrip();
+  scrollStripToActive();
+}
+
+
+// ── RENDER ────────────────────────────────────────────────
+function render() {
+  ctx.clearRect(0, 0, FRAME_W, FRAME_H);
+
+
+  // White bg
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+
+
+  // Ghost: show previous frame (or next during playback ignore)
+  if (!isPlaying && currentIdx > 0 && ghostOpacity > 0) {
+    ctx.globalAlpha = ghostOpacity;
+    ctx.drawImage(frames[currentIdx - 1], 0, 0);
+    ctx.globalAlpha = 1;
+  }
+
+
+  // Current frame content
+  ctx.drawImage(frames[currentIdx], 0, 0);
+}
+
+
+// ── DRAWING ───────────────────────────────────────────────
+function getCanvasPos(e) {
+  const rect = display.getBoundingClientRect();
+  const scaleX = FRAME_W / rect.width;
+  const scaleY = FRAME_H / rect.height;
+  const src = e.touches ? e.touches[0] : e;
+  return {
+    x: (src.clientX - rect.left) * scaleX,
+    y: (src.clientY - rect.top)  * scaleY,
+  };
+}
+
+
+function saveUndo() {
+  const fc = frames[currentIdx].getContext('2d');
+  const snap = fc.getImageData(0, 0, FRAME_W, FRAME_H);
+  if (!undoStack[currentIdx]) undoStack[currentIdx] = [];
+  undoStack[currentIdx].push(snap);
+  if (undoStack[currentIdx].length > MAX_UNDO) undoStack[currentIdx].shift();
+}
+
+
+let lastX = 0, lastY = 0;
+
+
+function startDraw(e) {
+  if (isPlaying) return;
+  e.preventDefault();
+  isDrawing = true;
+  const pos = getCanvasPos(e);
+  lastX = pos.x; lastY = pos.y;
+  saveUndo();
+
+
+  // Draw a dot for single click
+  const fc = frames[currentIdx].getContext('2d');
+  fc.lineCap = 'round';
+  fc.lineJoin = 'round';
+  if (tool === 'eraser') {
+    fc.globalCompositeOperation = 'destination-out';
+    fc.fillStyle = 'rgba(0,0,0,1)';
+    fc.beginPath();
+    fc.arc(lastX, lastY, brushRadius, 0, Math.PI * 2);
+    fc.fill();
+    fc.globalCompositeOperation = 'source-over';
+  } else {
+    fc.globalCompositeOperation = 'source-over';
+    fc.fillStyle = color;
+    fc.beginPath();
+    fc.arc(lastX, lastY, brushRadius / 2, 0, Math.PI * 2);
+    fc.fill();
+  }
+  render();
+}
+
+
+function draw(e) {
+  if (!isDrawing || isPlaying) return;
+  e.preventDefault();
+  const pos = getCanvasPos(e);
+  const fc = frames[currentIdx].getContext('2d');
+  fc.lineCap = 'round';
+  fc.lineJoin = 'round';
+  fc.lineWidth = brushRadius * 2;
+
+
+  if (tool === 'eraser') {
+    fc.globalCompositeOperation = 'destination-out';
+    fc.strokeStyle = 'rgba(0,0,0,1)';
+  } else {
+    fc.globalCompositeOperation = 'source-over';
+    fc.strokeStyle = color;
+  }
+
+
+  fc.beginPath();
+  fc.moveTo(lastX, lastY);
+  fc.lineTo(pos.x, pos.y);
+  fc.stroke();
+  fc.globalCompositeOperation = 'source-over';
+
+
+  lastX = pos.x; lastY = pos.y;
+  render();
+  updateThumb(currentIdx);
+}
+
+
+function endDraw(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  isDrawing = false;
+  updateThumb(currentIdx);
+}
+
+
+display.addEventListener('mousedown', startDraw);
+display.addEventListener('mousemove', draw);
+display.addEventListener('mouseup', endDraw);
+display.addEventListener('mouseleave', endDraw);
+display.addEventListener('touchstart', startDraw, { passive: false });
+display.addEventListener('touchmove', draw, { passive: false });
+display.addEventListener('touchend', endDraw, { passive: false });
+
+
+// ── PLAYBACK ──────────────────────────────────────────────
+let playFrameIdx = 0;
+
+
+function startPlay() {
+  if (frames.length < 2) return;
+  isPlaying = true;
+  playFrameIdx = 0;
+  document.getElementById('playBtn').textContent = '⏸';
+  document.getElementById('playOverlay').style.display = 'block';
+  playInterval = setInterval(() => {
+    // Render frame directly without ghost
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+    ctx.drawImage(frames[playFrameIdx], 0, 0);
+    playFrameIdx = (playFrameIdx + 1) % frames.length;
+  }, 1000 / fps);
+}
+
+
+function stopPlay() {
+  isPlaying = false;
+  clearInterval(playInterval);
+  playInterval = null;
+  document.getElementById('playBtn').textContent = '▶';
+  document.getElementById('playOverlay').style.display = 'none';
+  render();
+}
+
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  isPlaying ? stopPlay() : startPlay();
+});
+
+
+// ── FILM STRIP ────────────────────────────────────────────
+const filmStrip = document.getElementById('filmStrip');
+const addBtn = document.getElementById('addFrameBtn');
+
+
+function makeThumbEl(idx) {
+  const wrap = document.createElement('div');
+  wrap.className = 'frame-thumb';
+  wrap.dataset.idx = idx;
+
+
+  const tc = document.createElement('canvas');
+  tc.width = FRAME_W; tc.height = FRAME_H;
+  const tctx = tc.getContext('2d');
+  tctx.fillStyle = 'white';
+  tctx.fillRect(0, 0, FRAME_W, FRAME_H);
+  tctx.drawImage(frames[idx], 0, 0);
+  wrap.appendChild(tc);
+
+
+  const num = document.createElement('div');
+  num.className = 'frame-num';
+  num.textContent = idx + 1;
+  wrap.appendChild(num);
+
+
+  const del = document.createElement('button');
+  del.className = 'del-frame-btn';
+  del.textContent = '×';
+  del.title = 'Delete frame';
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteFrame(idx);
+  });
+  wrap.appendChild(del);
+
+
+  wrap.addEventListener('click', () => {
+    if (!isPlaying) switchTo(idx);
+  });
+
+
+  return wrap;
+}
+
+
+function rebuildStrip() {
+  // Remove all except addBtn
+  Array.from(filmStrip.querySelectorAll('.frame-thumb')).forEach(el => el.remove());
+  frames.forEach((_, i) => {
+    filmStrip.insertBefore(makeThumbEl(i), addBtn);
+  });
+  highlightStrip();
+  updateFrameCount();
+}
+
+
+function updateThumb(idx) {
+  const thumbs = filmStrip.querySelectorAll('.frame-thumb');
+  if (thumbs[idx]) {
+    const tc = thumbs[idx].querySelector('canvas');
+    const tctx = tc.getContext('2d');
+    tctx.fillStyle = 'white';
+    tctx.fillRect(0, 0, FRAME_W, FRAME_H);
+    tctx.drawImage(frames[idx], 0, 0);
+  }
+}
+
+
+function highlightStrip() {
+  filmStrip.querySelectorAll('.frame-thumb').forEach((el, i) => {
+    el.classList.toggle('active', i === currentIdx);
+  });
+}
+
+
+function scrollStripToActive() {
+  const thumbs = filmStrip.querySelectorAll('.frame-thumb');
+  if (thumbs[currentIdx]) {
+    thumbs[currentIdx].scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+  }
+}
+
+
+function updateFrameCount() {
+  document.getElementById('frameCount').textContent =
+    `Frame ${currentIdx + 1} / ${frames.length}`;
+}
+
+
+addBtn.addEventListener('click', () => addFrame(false));
+document.getElementById('dupBtn').addEventListener('click', () => addFrame(true));
+
+
+// ── TOOLS ─────────────────────────────────────────────────
+// Color swatches
+document.querySelectorAll('.swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    color = sw.dataset.color;
+    tool = 'pen';
+    document.getElementById('eraserBtn').classList.remove('active');
+  });
+});
+
+
+const customColorInput = document.getElementById('customColor');
+customColorInput.addEventListener('input', () => {
+  color = customColorInput.value;
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  tool = 'pen';
+  document.getElementById('eraserBtn').classList.remove('active');
+});
+
+
+// Brush size
+const brushSlider = document.getElementById('brushSize');
+const brushVal = document.getElementById('brushSizeVal');
+brushSlider.addEventListener('input', () => {
+  brushRadius = parseInt(brushSlider.value);
+  brushVal.textContent = brushRadius;
+});
+
+
+// Eraser
+document.getElementById('eraserBtn').addEventListener('click', () => {
+  tool = tool === 'eraser' ? 'pen' : 'eraser';
+  document.getElementById('eraserBtn').classList.toggle('active', tool === 'eraser');
+});
+
+
+// Clear
+document.getElementById('clearBtn').addEventListener('click', () => {
+  saveUndo();
+  const fc = frames[currentIdx].getContext('2d');
+  fc.clearRect(0, 0, FRAME_W, FRAME_H);
+  render();
+  updateThumb(currentIdx);
+});
+
+
+// Undo
+document.getElementById('undoBtn').addEventListener('click', doUndo);
+function doUndo() {
+  if (!undoStack[currentIdx] || undoStack[currentIdx].length === 0) return;
+  const snap = undoStack[currentIdx].pop();
+  const fc = frames[currentIdx].getContext('2d');
+  fc.putImageData(snap, 0, 0);
+  render();
+  updateThumb(currentIdx);
+}
+
+
+// Ghost opacity
+const ghostSlider = document.getElementById('ghostOpacity');
+const ghostValEl = document.getElementById('ghostVal');
+ghostSlider.addEventListener('input', () => {
+  ghostOpacity = parseInt(ghostSlider.value) / 100;
+  ghostValEl.textContent = ghostSlider.value + '%';
+  render();
+});
+
+
+// FPS
+const fpsSlider = document.getElementById('fpsRange');
+const fpsValEl = document.getElementById('fpsVal');
+fpsSlider.addEventListener('input', () => {
+  fps = parseInt(fpsSlider.value);
+  fpsValEl.textContent = fps;
+  if (isPlaying) { stopPlay(); startPlay(); }
+});
+
+
+// ── EXPORT ────────────────────────────────────────────────
+document.getElementById('saveBtn').addEventListener('click', exportWebM);
+
+
+async function exportWebM() {
+  if (frames.length < 1) return;
+
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Saving…';
+
+
+  if (!window.MediaRecorder) {
+    alert('Video export is not supported in this browser. Try Chrome or Firefox.');
+    btn.disabled = false;
+    btn.textContent = '💾 Save Video';
+    return;
+  }
+
+
+  // Pick best supported codec
+  const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+    .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+
+
+  // Offscreen canvas to draw each frame into
+  const offscreen = document.createElement('canvas');
+  offscreen.width = FRAME_W;
+  offscreen.height = FRAME_H;
+  const offCtx = offscreen.getContext('2d');
+
+
+  // Draw first frame immediately so the stream has content before recording starts
+  offCtx.fillStyle = 'white';
+  offCtx.fillRect(0, 0, FRAME_W, FRAME_H);
+  offCtx.drawImage(frames[0], 0, 0);
+
+
+  const stream = offscreen.captureStream(fps);
+  const recorder = new MediaRecorder(stream, { mimeType });
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  const done = new Promise(resolve => { recorder.onstop = resolve; });
+
+
+  recorder.start();
+
+
+  const frameDuration = 1000 / fps;
+  for (let i = 0; i < frames.length; i++) {
+    offCtx.fillStyle = 'white';
+    offCtx.fillRect(0, 0, FRAME_W, FRAME_H);
+    offCtx.drawImage(frames[i], 0, 0);
+    await new Promise(resolve => setTimeout(resolve, frameDuration));
+  }
+
+
+  recorder.stop();
+  await done;
+
+
+  const blob = new Blob(chunks, { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'stopmotion.webm';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+
+  btn.textContent = '✅ Saved!';
+  setTimeout(() => {
+    btn.textContent = '💾 Save Video';
+    btn.disabled = false;
+  }, 2000);
+}
+
+
+// ── KEYBOARD SHORTCUTS ────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    isPlaying ? stopPlay() : startPlay();
+  } else if (e.key === 'e' || e.key === 'E') {
+    tool = tool === 'eraser' ? 'pen' : 'eraser';
+    document.getElementById('eraserBtn').classList.toggle('active', tool === 'eraser');
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    doUndo();
+  } else if (e.key === 'ArrowRight' && !isPlaying) {
+    if (currentIdx < frames.length - 1) switchTo(currentIdx + 1);
+  } else if (e.key === 'ArrowLeft' && !isPlaying) {
+    if (currentIdx > 0) switchTo(currentIdx - 1);
+  } else if (e.key === 'n' || e.key === 'N') {
+    if (!isPlaying) addFrame(false);
+  } else if (e.key === 'd' || e.key === 'D') {
+    if (!isPlaying) addFrame(true);
+  }
+});
+
+
+// ── AUTO-SAVE TO LOCALSTORAGE ─────────────────────────────
+const STORAGE_KEY = 'stopmotion_v1';
+let saveTimer = null;
+
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persistFrames, 1200);
+}
+
+
+function persistFrames() {
+  try {
+    const data = {
+      fps,
+      currentIdx,
+      frames: frames.map(f => f.toDataURL('image/png')),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    showSaveIndicator('💾 Auto-saved');
+  } catch (e) {
+    console.warn('Auto-save failed (storage full?):', e);
+  }
+}
+
+
+function showSaveIndicator(msg) {
+  let el = document.getElementById('saveIndicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'saveIndicator';
+    Object.assign(el.style, {
+      position: 'fixed', bottom: '12px', left: '50%', transform: 'translateX(-50%)',
+      background: 'rgba(46,204,113,0.9)', color: '#000', fontWeight: '700',
+      fontSize: '12px', padding: '4px 14px', borderRadius: '20px',
+      pointerEvents: 'none', zIndex: '9999', transition: 'opacity 0.5s',
+    });
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = '0'; }, 2000);
+}
+
+
+async function restoreFrames() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data.frames || !data.frames.length) return false;
+
+
+    const loaded = await Promise.all(data.frames.map(url => new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = FRAME_W; c.height = FRAME_H;
+        c.getContext('2d').drawImage(img, 0, 0);
+        resolve(c);
+      };
+      img.onerror = () => resolve(makeBlankFrame());
+      img.src = url;
+    })));
+
+
+    frames = loaded;
+    undoStack = frames.map(() => []);
+    fps = data.fps || 8;
+    document.getElementById('fpsRange').value = fps;
+    document.getElementById('fpsVal').textContent = fps;
+    rebuildStrip();
+    switchTo(Math.min(data.currentIdx || 0, frames.length - 1));
+    showSaveIndicator('✅ Animation restored!');
+    return true;
+  } catch (e) {
+    console.warn('Restore failed:', e);
+    return false;
+  }
+}
+
+
+// Hook auto-save into every action that changes frames
+const _origEndDraw = endDraw;
+display.addEventListener('mouseup', scheduleSave);
+display.addEventListener('touchend', scheduleSave);
+
+
+const _origAddFrame = addFrame;
+// Wrap addFrame & deleteFrame to also save
+const __addFrame = addFrame;
+window.addFrame = function(dup) { __addFrame(dup); scheduleSave(); };
+addBtn.addEventListener('click', scheduleSave);
+document.getElementById('dupBtn').addEventListener('click', scheduleSave);
+
+
+// New animation button
+document.getElementById('newBtn').addEventListener('click', () => {
+  if (!confirm('Start a new animation? This will clear all frames.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  frames = [makeBlankFrame(), makeBlankFrame(), makeBlankFrame()];
+  undoStack = [[], [], []];
+  rebuildStrip();
+  switchTo(0);
+});
+
+
+// ── INIT ──────────────────────────────────────────────────
+async function init() {
+  resizeDisplay();
+  const restored = await restoreFrames();
+  if (!restored) {
+    frames = [makeBlankFrame(), makeBlankFrame(), makeBlankFrame()];
+    undoStack = [[], [], []];
+    rebuildStrip();
+    switchTo(0);
+  }
+}
+
+
+init();
+</script>
+</body>
+</html>
